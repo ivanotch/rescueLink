@@ -1,5 +1,5 @@
 import "../globals.css";
-import {Text, View, Alert, Button, Image, TouchableOpacity, FlatList, Modal, TextInput, StyleSheet} from "react-native";
+import {Text, View, ScrollView, KeyboardAvoidingView, Platform, Alert, Button, Image, TouchableOpacity, FlatList, Modal, TextInput, StyleSheet} from "react-native";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 import {useEffect, useState} from "react";
@@ -7,20 +7,27 @@ import Entypo from "@expo/vector-icons/Entypo";
 import {HelpRequestWithId} from "@/types/helpRequestWithId";
 import {listenToRequest, createHelpRequest} from "@/firebaseHandler/helpRequestHandler";
 import {router} from "expo-router";
+import MapPicker from "@/components/MapPicker";
 
 export default function Index() {
+
+    //photo holder
     const [photo, setPhoto] = useState<string | null>(null);
 
     //modal info
     const [concern, setConcern] = useState("");
     const [description, setDescription] = useState("");
     const [urgency, setUrgency] = useState<"low" | "medium" | "high">("low");
-
     const urgencyLevels = ["low", "medium", "high"] as const;
+
 
     const [activeTab, setActiveTab] = useState<"humans" | "animals">("humans");
     const [requests, setRequests] = useState<HelpRequestWithId[]>([]);
     const [modal, setModal] = useState(false);
+
+    //Map
+    const [mapVisible, setMapVisible] = useState(false);
+    const [pickedLocation, setPickedLocation] = useState<{ latitude: number; longitude: number; address?: string } | null>(null);
 
     useEffect(() => {
         const unsubscribe  = listenToRequest(setRequests);
@@ -44,6 +51,20 @@ export default function Index() {
 
     const handleSubmit = async () => {
         try {
+            if (!concern.trim()) {
+                alert("Please enter a concern.");
+                return;
+            }
+
+            if (!description.trim()) {
+                alert("Please enter a description.");
+                return;
+            }
+
+            if (!pickedLocation) {
+                alert("Please pick a location.");
+                return;
+            }
             await createHelpRequest({
                 personId: "+639123456789", // later: get from auth or input
                 concern,
@@ -51,14 +72,12 @@ export default function Index() {
                 levelOfUrgency: urgency,
                 helpStatus: "onGoing",
                 types: activeTab, // "humans" or "animals"
-                location: { latitude: 14.5995, longitude: 120.9842 }, // later: from Location API
-                photoUrl: "",
+                location: { latitude: pickedLocation.latitude, longitude: pickedLocation.longitude }, // later: from Location API
+                photoUri: photo || undefined,
             });
 
             // Reset + Close
-            setConcern("");
-            setDescription("");
-            setUrgency("low");
+            resetForm();
             setModal(false);
         } catch (err) {
             console.error("Failed to save request:", err);
@@ -71,8 +90,7 @@ export default function Index() {
 
         const result = await ImagePicker.launchCameraAsync({
             mediaTypes: 'images',
-            allowsEditing: true,
-            aspect: [4, 3],
+            allowsEditing: false,
             quality: 1,
         })
 
@@ -85,8 +103,7 @@ export default function Index() {
 
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: 'images',
-            allowsEditing: true,
-            aspect: [4, 3],
+            allowsEditing: false,
             quality: 1,
         });
 
@@ -98,11 +115,18 @@ export default function Index() {
             "Upload Photo",
             "Choose an option",
             [
+                { text: "Cancel", style: "cancel" },
                 { text: "📷 Take Photo", onPress: openCamera },
                 { text: "🖼️ Choose from Gallery", onPress: openGallery },
-                { text: "Cancel", style: "cancel" },
             ]
         );
+    };
+
+    const resetForm = () => {
+        setConcern("");
+        setDescription("");
+        setUrgency("low");
+        setPhoto(null);
     };
 
     return (
@@ -187,98 +211,146 @@ export default function Index() {
                 />
                 <Modal
                     visible={modal}
-                    animationType={"slide"}
+                    animationType="slide"
                     transparent={true}
-                    onRequestClose={() => {setModal(false)}}
+                    onRequestClose={() => {
+                        resetForm();
+                        setModal(false);
+                    }}
                 >
-                    <View  style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }} className="justify-center items-center">
+                    <View
+                        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}
+                        className="justify-center items-center"
+                    >
                         <View
                             className="bg-white flex-col justify-between p-4 rounded-2xl m-4"
                             style={{ width: "90%", height: "80%" }}
                         >
-                            <View>
-                                <View
-                                    className="border-gray-300 mb-4"
-                                    style={{ borderBottomWidth: 1 }}
+                            {/* 👇 Wrap form inside KeyboardAvoidingView + ScrollView */}
+                            <KeyboardAvoidingView
+                                behavior={Platform.OS === "ios" ? "padding" : undefined}
+                                style={{ flex: 1 }}
+                            >
+                                <ScrollView
+                                    contentContainerStyle={{ paddingBottom: 20 }}
+                                    showsVerticalScrollIndicator={false}
                                 >
-                                    <Text style={{fontSize: 20, padding: 4}} className="font-semibold">Add Help Request</Text>
-                                </View>
+                                    {/* Title */}
+                                    <View
+                                        className="border-gray-300 mb-4"
+                                        style={{ borderBottomWidth: 1 }}
+                                    >
+                                        <Text style={{ fontSize: 20, padding: 4 }} className="font-semibold">
+                                            Add Help Request
+                                        </Text>
+                                    </View>
 
-                                <View style={styles.container} className="">
-                                    <Text style={styles.label} className="">Concern:</Text>
-                                    <TextInput
-                                        placeholder="What's Your Request?"
-                                        style={styles.input}
-                                        value={concern}
-                                        onChangeText={setConcern}
-                                    />
-                                </View>
-
-                                <View>
-                                    <Text className="font-medium">Description</Text>
-                                    <TextInput
-                                        numberOfLines={4}
-                                        placeholder="Add details"
-                                        style={{
-                                            borderWidth: 1,
-                                            borderColor: "#D1D5DB", // gray-300
-                                            borderRadius: 8,
-                                            padding: 8,
-                                            marginBottom: 12,
-                                            marginTop: 9,
-                                            height: 100, // 👈 set explicit height for multiline
-                                            textAlignVertical: "top", // 👈 makes text start at the top-left
-                                        }}
-                                        value={description}
-                                        onChangeText={setDescription}
-                                        multiline
-                                    />
-                                </View>
-
-                                <View>
-                                    <Button title="Upload Photo" onPress={openPickerDialog} />
-                                    {photo && (
-                                        <Image
-                                            source={{ uri: photo }}
-                                            style={{ width: 200, height: 200, marginTop: 20, borderRadius: 10 }}
+                                    {/* Concern */}
+                                    <View style={styles.container}>
+                                        <Text style={styles.label}>Concern:</Text>
+                                        <TextInput
+                                            placeholder="What's Your Request?"
+                                            style={styles.input}
+                                            value={concern}
+                                            onChangeText={setConcern}
                                         />
-                                    )}
-                                </View>
+                                    </View>
 
-                                <View className="flex-col gap-2">
-                                    <Text className="font-medium ">Urgency</Text>
-                                    <View className="flex-row justify-around mb-4">
-                                        {urgencyLevels.map((level) => (
-                                            <TouchableOpacity
-                                                key={level}
-                                                activeOpacity={1}
-                                                onPress={() => setUrgency(level)}
-                                                className={`flex-1 items-center mx-1 py-2 rounded-lg ${
-                                                    urgency === level ? "bg-[#0F0D23]" : "bg-gray-200"
-                                                }`}
-                                            >
-                                                <Text
-                                                    className={`capitalize ${
-                                                        urgency === level ? "text-white" : "text-black"
+                                    {/* Description */}
+                                    <View>
+                                        <Text className="font-medium">Description</Text>
+                                        <TextInput
+                                            numberOfLines={4}
+                                            placeholder="Add details"
+                                            style={{
+                                                borderWidth: 1,
+                                                borderColor: "#D1D5DB",
+                                                borderRadius: 8,
+                                                padding: 8,
+                                                marginBottom: 12,
+                                                marginTop: 9,
+                                                height: 100,
+                                                textAlignVertical: "top",
+                                            }}
+                                            value={description}
+                                            onChangeText={setDescription}
+                                            multiline
+                                        />
+                                    </View>
+
+                                    {/* Photo Upload */}
+                                    <View className="my-5">
+                                        <Button title="Upload Photo" onPress={openPickerDialog} />
+                                        {photo && (
+                                            <Image
+                                                source={{ uri: photo }}
+                                                style={{
+                                                    width: "100%",
+                                                    height: 200,
+                                                    marginTop: 20,
+                                                    borderRadius: 10,
+                                                }}
+                                            />
+                                        )}
+                                    </View>
+
+                                    <View className="my-5">
+                                        <Button title="📍 Share Location" onPress={() => setMapVisible(true)} />
+                                        {pickedLocation && (
+                                            <Text style={{ marginTop: 10 }}>
+                                                Selected: {pickedLocation.address || `${pickedLocation.latitude.toFixed(3)}, ${pickedLocation.longitude.toFixed(3)}`}
+                                            </Text>
+                                        )}
+                                    </View>
+
+                                    <MapPicker
+                                        visible={mapVisible}
+                                        onClose={() => setMapVisible(false)}
+                                        onLocationSelect={(loc) => setPickedLocation(loc)}
+                                    />
+
+                                    {/* Urgency */}
+                                    <View className="flex-col gap-2">
+                                        <Text className="font-medium">Urgency</Text>
+                                        <View className="flex-row justify-around mb-4">
+                                            {urgencyLevels.map((level) => (
+                                                <TouchableOpacity
+                                                    key={level}
+                                                    activeOpacity={1}
+                                                    onPress={() => setUrgency(level)}
+                                                    className={`flex-1 items-center mx-1 py-2 rounded-lg ${
+                                                        urgency === level ? "bg-[#0F0D23]" : "bg-gray-200"
                                                     }`}
                                                 >
-                                                    {level}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
+                                                    <Text
+                                                        className={`capitalize ${
+                                                            urgency === level ? "text-white" : "text-black"
+                                                        }`}
+                                                    >
+                                                        {level}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
                                     </View>
-                                </View>
-                            </View>
+                                </ScrollView>
+                            </KeyboardAvoidingView>
 
-                            {/*//buttons*/}
+                            {/* Buttons stay pinned at the bottom */}
                             <View className="flex-row justify-end gap-3">
                                 <TouchableOpacity
-                                    onPress={() => setModal(false)}
+                                    onPress={() => {
+                                        resetForm();
+                                        setModal(false);
+                                    }}
                                     className="px-4 py-2 rounded-lg bg-gray-300"
                                 >
                                     <Text>Cancel</Text>
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={handleSubmit} className="px-4 py-2 rounded-lg bg-[#0F0D23]">
+                                <TouchableOpacity
+                                    onPress={handleSubmit}
+                                    className="px-4 py-2 rounded-lg bg-[#0F0D23]"
+                                >
                                     <Text className="text-white font-semibold">Send Help</Text>
                                 </TouchableOpacity>
                             </View>
