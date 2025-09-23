@@ -18,4 +18,5 @@ export interface Person {
     phoneNumber: string;
     address: Address;
     validIdUrl: string;
+    isValidated: boolean;
 }

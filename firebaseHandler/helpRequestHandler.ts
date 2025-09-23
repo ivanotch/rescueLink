@@ -1,9 +1,10 @@
-import {collection, doc, query, onSnapshot as onSubSnapshot, onSnapshot, addDoc, serverTimestamp} from "firebase/firestore";
+import {collection, doc, getDoc, query, orderBy, onSnapshot, addDoc, serverTimestamp} from "firebase/firestore";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {HelpRequestWithId} from "@/types/helpRequestWithId";
 import {HelpRequest} from "@/types/helpRequest";
 import * as Location from "expo-location";
 import {db} from "@/services/firebaseConfig";
+import {Person} from "@/types/persons";
 
 //listen to realtime update on helpRequest to display on home page
 export function listenToRequest(callback: (request: HelpRequestWithId[]) => void) {
@@ -43,7 +44,7 @@ export async function createHelpRequest(request: Omit<HelpRequest, "wordedAddres
         });
 
         const wordedAddress = address
-            ? `${address.street || ""} ${address.subregion || ""}, ${address.region || ""}, ${address.country || ""}`
+            ? `${address.street || ""} ${address.city || ""} ${address.subregion || ""}, ${address.region || ""}, ${address.country || ""}`
             : "Unknown location";
 
         const { photoUri, ...rest } = request;
@@ -70,20 +71,41 @@ export const subscribeToHelpRequestWithResponses = (id: string, callback: (data:
     let responsesData: any[] = [];
 
     const unsubscribeDoc = onSnapshot(doc(db, "helpRequest", id), (docSnap) => {
-        requestData = docSnap.exists() ? docSnap.data() : null;
+        requestData = docSnap.exists() ? { id: docSnap.id, ...docSnap.data() } : null;
         callback({requestDetails: requestData, responses: responsesData});
     });
 
-    const unsubscribeSub = onSubSnapshot(
-        query(collection(db, "helpRequest", id, "responses")),
-        (querySnapshot) => {
-            responsesData = querySnapshot.docs.map((d) => ({
-                id: d.id,
-                ...d.data(),
-            }));
-            callback({requestDetails: requestData, responses: responsesData});
+    const unsubscribeSub = onSnapshot(
+        query(collection(db, "helpRequest", id, "responses"), orderBy("timestamp", "asc")),
+        async (querySnapshot) => {
+            const responsesData = await Promise.all(
+                querySnapshot.docs.map(async (d) => {
+                    const data = d.data();
+
+                    let personName = "";
+                    if (data.personId) {
+                        try {
+                            const userSnap = await getDoc(data.personId); // personId is a DocumentReference
+                            if (userSnap.exists()) {
+                                const userData = userSnap.data() as Person;
+                                personName = userData.name ?? "Unknown User";
+                            }
+                        } catch (err) {
+                            console.error("Error fetching user:", err);
+                        }
+                    }
+
+                    return {
+                        id: d.id,
+                        ...data,
+                        personName, // ✅ add name here
+                    };
+                })
+            );
+
+            callback({ requestDetails: requestData, responses: responsesData });
         }
-    )
+    );
 
     return () => {
         unsubscribeDoc();
