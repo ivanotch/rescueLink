@@ -66,7 +66,7 @@ export default function Index() {
                 return;
             }
             await createHelpRequest({
-                personId: "+639123456789", // later: get from auth or input
+                personId: "+639123456789", // later: get from (auth) or input
                 concern,
                 description,
                 levelOfUrgency: urgency,
