@@ -37,9 +37,21 @@ export default function Login() {
         <SafeAreaProvider>
             <SafeAreaView style={{ flex: 1 }}>
                 <View style={{ flex: 1 }} className="flex-col items-center justify-center w-full">
-                    <Text style={{fontSize: 32, fontWeight: "bold"}}>
-                        Login
-                    </Text>
+                    <View className="flex-col items-center w-full space-y-1">
+                        <Text style={{ fontSize: 32, fontWeight: "bold" }}>
+                            Login
+                        </Text>
+
+                        <Text style={{ fontSize: 12, fontWeight: "bold" }}>
+                            Don&apos;t have an account?{" "}
+                            <Text
+                                style={{ color: "blue" }}
+                                onPress={() => router.replace("/signup")}
+                            >
+                                Sign up
+                            </Text>
+                        </Text>
+                    </View>
                     <View style={{ padding: 20 }} className="w-[80%]">
 
                         <View className="bg-gray-200 rounded-lg py-1 flex-row items-center w-full" style={{ marginBottom: 10, paddingHorizontal: 5}}>
