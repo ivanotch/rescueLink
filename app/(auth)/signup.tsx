@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import {
     View,
     TextInput,
@@ -6,10 +6,14 @@ import {
     Text,
     TouchableOpacity,
     Dimensions,
+    Image,
 } from "react-native";
+import { setDoc, doc } from "firebase/firestore";
+import Recaptcha from "react-native-recaptcha-that-works";
 import {
     createUserWithEmailAndPassword,
-    updateProfile,
+    PhoneAuthProvider,
+    linkWithCredential,
 } from "firebase/auth";
 import {
     SafeAreaProvider,
@@ -20,16 +24,19 @@ import Animated, {
     useAnimatedStyle,
     withTiming,
 } from "react-native-reanimated";
-import { auth } from "@/services/firebaseConfig";
+import { auth, db, firebaseConfig } from "@/services/firebaseConfig";
 import { useRouter, Href } from "expo-router";
 import Fontisto from "@expo/vector-icons/Fontisto";
 import AntDesign from "@expo/vector-icons/AntDesign";
 import Feather from "@expo/vector-icons/Feather";
+import Ionicons from '@expo/vector-icons/Ionicons'
+import * as ImagePicker from "expo-image-picker";
 
 const { width } = Dimensions.get("window");
 
 export default function Signup() {
     const router = useRouter();
+    const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPass, setConfirmPass] = useState("");
@@ -37,7 +44,6 @@ export default function Signup() {
 
     // stage 2
     const [otp, setOtp] = useState("");
-    const [verificationId, setVerificationId] = useState<string | null>(null);
 
     // stage 3
     const [websiteUrl, setWebsiteUrl] = useState("");
@@ -45,11 +51,22 @@ export default function Signup() {
     const [step, setStep] = useState(1);
     const translateX = useSharedValue(0);
 
+    const [nameError, setNameError] = useState("");
+    const [emailError, setEmailError] = useState("");
+    const [passwordError, setPasswordError] = useState("");
+    const [confirmPassError, setConfirmPassError] = useState("");
+    const [phoneNumberError, setPhoneNumberError] = useState("");
+
+    const recaptchaRef = useRef<any>(null);
+
+    const validateEmail = (email: string) => {
+        const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        return regex.test(email);
+    };
+
     const slideTo = (nextStep: number) => {
         setStep(nextStep);
-        translateX.value = withTiming(-(nextStep - 1) * width, {
-            duration: 400,
-        });
+        translateX.value = withTiming(-(nextStep - 1) * width, { duration: 400 });
     };
 
     const animatedStyle = useAnimatedStyle(() => ({
@@ -57,18 +74,69 @@ export default function Signup() {
     }));
 
     const handleSignup = async () => {
-        // Firebase signup skipped for now
-        slideTo(2);
+        // let valid = true;
+        //
+        // setEmailError("");
+        // setPasswordError("");
+        // setConfirmPassError("");
+        //
+        // if (!validateEmail(email)) {
+        //     setEmailError("Please Enter a valid email");
+        //     valid = false;
+        // }
+        //
+        // if (password.length < 6) {
+        //     setPasswordError("Password must be at least 6 characters long.");
+        //     valid = false;
+        // }
+        //
+        // if (password !== confirmPass) {
+        //     setConfirmPassError("Passwords do not match.");
+        //     valid = false;
+        // }
+        //
+        // if (!valid) return;
+        slideTo(2)
+        // try {
+        //     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        //     await setDoc(doc(db, "persons", userCredential.user.uid), {
+        //         profileCompletionStep: 1,
+        //     }, { merge: true });
+        //     console.log("User created:", userCredential.user.uid);
+        //     slideTo(2);
+        // } catch (error: any) {
+        //     Alert.alert("Signup failed", error.message);
+        // }
     };
 
-    const sendOtp = async () => {
-        // Firebase OTP skipped for now
-        Alert.alert("OTP Sent", "Please check your phone");
+    const handlePhoneChange = (input: string) => {
+        let digits = input.replace(/\D/g, "");
+        if (digits.startsWith("0")) digits = digits.substring(1);
+        if (digits.length > 10) digits = digits.substring(0, 10);
+        setPhoneNumber(digits);
     };
 
-    const confirmOtp = async () => {
-        slideTo(3);
-    };
+    const handleSubmitInfo = () => {
+        let valid = true;
+
+        if (!phoneNumber) {
+            setPhoneNumberError("Phone number is required");
+            valid = false;
+        }
+
+        if (!name) {
+            setNameError("Name is required");
+            valid = false;
+        }
+
+        if (valid) {
+            slideTo(3);
+        }
+    }
+
+    const handleSubmitAddress = () => {
+        slideTo(4);
+    }
 
     const handleSubmitUrl = () => {
         const urlRegex = /^(https?:\/\/[^\s$.?#].[^\s]*)$/;
@@ -80,110 +148,145 @@ export default function Signup() {
         router.replace("/login" as Href);
     };
 
+    const handleReturn = () => {
+        if (step > 1) slideTo(step - 1);
+        else router.back();
+    };
+
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+    // Pick from gallery
+    const pickImage = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert("Permission required", "Please allow access to your photos.");
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true, // enable cropping
+            aspect: [4, 3], // you can adjust ID ratio
+            quality: 1,
+        });
+
+        if (!result.canceled) {
+            setSelectedImage(result.assets[0].uri);
+        }
+    };
+
+    // Take a photo with camera
+    const takePhoto = async () => {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert("Permission required", "Please allow access to your camera.");
+            return;
+        }
+
+        const result = await ImagePicker.launchCameraAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true, // allow cropping when taking photo
+            aspect: [4, 3],
+            quality: 1,
+        });
+
+        if (!result.canceled) {
+            setSelectedImage(result.assets[0].uri);
+        }
+    };
+
+    const handleSubmitID = () => {
+        if (!selectedImage) {
+            Alert.alert("Missing ID", "Please upload or take a photo of your ID.");
+            return;
+        }
+        // Upload logic here
+        console.log("Submitting ID:", selectedImage);
+    };
+
     return (
         <SafeAreaProvider>
-            <SafeAreaView style={{ flex: 1 }}>
-                <View
-                    style={{ flex: 1 }}
-                    className="flex-col items-center justify-center w-full"
-                >
-                    <View className="flex-col items-center w-full space-y-1">
-                        <Text style={{ fontSize: 32, fontWeight: "bold" }}>Sign up</Text>
-                        <Text style={{ fontSize: 12, fontWeight: "bold" }}>
-                            Already have an account?{" "}
-                            <Text
-                                style={{ color: "blue" }}
-                                onPress={() => router.replace("/login")}
-                            >
-                                Login
-                            </Text>
-                        </Text>
-                    </View>
-
-                    {/* Wrapper to clip extra steps */}
-                    <View style={{ flex: 1, width, overflow: "hidden" }}>
+            <SafeAreaView style={{ flex: 1 }} className="items-center justify-center">
+                <View className="flex-col items-center w-full">
+                    <View style={{ width, overflow: "hidden" }}>
                         <Animated.View
                             style={[
                                 animatedStyle,
-                                { flexDirection: "row", width: width * 3, flex: 1 },
+                                { flexDirection: "row", width: width * 4 },
                             ]}
                         >
                             {/* Step 1 */}
-                            <View style={{ flex: 1, padding: 20 }}>
-                                <View
-                                    className="bg-gray-200 rounded-lg py-1 flex-row items-center w-full"
-                                    style={{ marginBottom: 10, paddingHorizontal: 5 }}
-                                >
-                                    <Fontisto
-                                        name="email"
-                                        size={24}
-                                        color="black"
-                                        style={{ marginHorizontal: 4 }}
-                                    />
-                                    <TextInput
-                                        placeholder="Email"
-                                        value={email}
-                                        onChangeText={setEmail}
-                                        className="w-full"
-                                    />
+                            <View style={{ flex: 1, padding: 20 }} className="flex-col items-center">
+                                <View className="flex-col items-center w-full space-y-1 mb-6">
+                                    <Text style={{ fontSize: 32, fontWeight: "bold" }}>Sign up</Text>
+                                    <Text style={{ fontSize: 12, fontWeight: "bold" }}>
+                                        Already have an account?{" "}
+                                        <Text style={{ color: "blue" }} onPress={() => router.replace("/login")}>
+                                            Login
+                                        </Text>
+                                    </Text>
                                 </View>
-
-                                <View
-                                    className="bg-gray-200 rounded-lg py-1 flex-row items-center w-full"
-                                    style={{ marginBottom: 10, paddingHorizontal: 5 }}
-                                >
-                                    <AntDesign
-                                        name="lock"
-                                        size={24}
-                                        color="black"
-                                        style={{ marginHorizontal: 4 }}
-                                    />
-                                    <TextInput
-                                        placeholder="Password"
-                                        value={password}
-                                        secureTextEntry
-                                        onChangeText={setPassword}
-                                        className="w-full"
-                                    />
+                                {/* Email input */}
+                                <View style={{ marginBottom: 10 }}>
+                                    <View
+                                        className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                        style={{ paddingHorizontal: 5, width: "90%" }}
+                                    >
+                                        <Fontisto name="email" size={24} color="black" style={{ marginHorizontal: 4 }} />
+                                        <TextInput
+                                            placeholder="Email"
+                                            value={email}
+                                            autoCapitalize="none"
+                                            keyboardType="email-address"
+                                            onChangeText={(text) => {
+                                                setEmail(text);
+                                                if (emailError) setEmailError("");
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </View>
+                                    {emailError ? <Text style={{ color: "red", fontSize: 12 }}>{emailError}</Text> : null}
                                 </View>
-
-                                <View
-                                    className="bg-gray-200 rounded-lg py-1 flex-row items-center w-full"
-                                    style={{ marginBottom: 10, paddingHorizontal: 5 }}
-                                >
-                                    <AntDesign
-                                        name="lock"
-                                        size={24}
-                                        color="black"
-                                        style={{ marginHorizontal: 4 }}
-                                    />
-                                    <TextInput
-                                        placeholder="Confirm Password"
-                                        value={confirmPass}
-                                        secureTextEntry
-                                        onChangeText={setConfirmPass}
-                                        className="w-full"
-                                    />
+                                {/* Password input */}
+                                <View style={{ marginBottom: 10 }}>
+                                    <View
+                                        className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                        style={{ paddingHorizontal: 5, width: "90%" }}
+                                    >
+                                        <AntDesign name="lock" size={24} color="black" style={{ marginHorizontal: 4 }} />
+                                        <TextInput
+                                            placeholder="Password"
+                                            value={password}
+                                            secureTextEntry
+                                            onChangeText={(text) => {
+                                                setPassword(text);
+                                                if (passwordError) setPasswordError("");
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </View>
+                                    {passwordError ? <Text style={{ color: "red", fontSize: 12 }}>{passwordError}</Text> : null}
                                 </View>
-
-                                <View
-                                    className="bg-gray-200 rounded-lg py-1 flex-row items-center w-full"
-                                    style={{ marginBottom: 10, paddingHorizontal: 5 }}
-                                >
-                                    <Feather
-                                        name="phone"
-                                        size={24}
-                                        color="black"
-                                        style={{ marginHorizontal: 4 }}
-                                    />
-                                    <TextInput
-                                        placeholder="Phone Number"
-                                        value={phoneNumber}
-                                        onChangeText={setPhoneNumber}
-                                        className="w-full"
-                                    />
+                                {/* Confirm password input */}
+                                <View style={{ marginBottom: 10 }}>
+                                    <View
+                                        className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                        style={{ paddingHorizontal: 5, width: "90%" }}
+                                    >
+                                        <AntDesign name="lock" size={24} color="black" style={{ marginHorizontal: 4 }} />
+                                        <TextInput
+                                            placeholder="Confirm Password"
+                                            value={confirmPass}
+                                            secureTextEntry
+                                            onChangeText={(text) => {
+                                                setConfirmPass(text);
+                                                if (confirmPassError) setConfirmPassError("");
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </View>
+                                    {confirmPassError ? <Text style={{ color: "red", fontSize: 12 }}>{confirmPassError}</Text> : null}
                                 </View>
-
                                 <TouchableOpacity
                                     activeOpacity={0.8}
                                     style={{
@@ -201,36 +304,340 @@ export default function Signup() {
                                 </TouchableOpacity>
                             </View>
 
-                            {/* Step 2 */}
+                            {/* Step 2 - Personal Information */}
                             <View style={{ flex: 1, padding: 20 }}>
-                                <Text style={{ fontSize: 24, fontWeight: "bold" }}>
-                                    Verify Phone
-                                </Text>
-                                <TextInput
-                                    placeholder="Enter OTP"
-                                    value={otp}
-                                    onChangeText={setOtp}
-                                />
-                                <TouchableOpacity onPress={sendOtp}>
-                                    <Text>Send OTP</Text>
-                                </TouchableOpacity>
-                                <TouchableOpacity onPress={confirmOtp}>
-                                    <Text>Confirm OTP</Text>
+                                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
+                                    <TouchableOpacity onPress={handleReturn} style={{marginRight: 10}}>
+                                        <Ionicons name="chevron-back-circle-outline" size={24} color="black" />
+                                    </TouchableOpacity>
+                                    <View>
+                                        <Text style={{ fontSize: 24, fontWeight: "bold" }}>Personal Information</Text>
+                                        <Text style={{ fontSize: 14 }}>Add your correct personal name and number</Text>
+                                    </View>
+                                </View>
+
+                                <View
+                                    className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                >
+                                    <Ionicons name="person-outline" size={24} color="black" style={{ marginHorizontal: 4 }}/>
+                                    <TextInput
+                                        placeholder="Full name"
+                                        value={name}
+                                        autoCapitalize="none"
+                                        keyboardType="email-address"
+                                        onChangeText={(text) => {
+                                            setName(text);
+                                            if (nameError) setNameError("");
+                                        }}
+                                        className="w-full"
+                                    />
+                                </View>
+                                {nameError ? <Text style={{ color: "red"}}>{nameError}</Text> : null}
+
+                                <View className="bg-gray-200 rounded-lg py-1 flex-row items-center" style={{marginTop: 10}}>
+                                    <Feather name="phone" size={24} color="black" style={{ marginHorizontal: 4 }} />
+                                    <Text>+63</Text>
+                                    <TextInput
+                                        placeholder="Phone Number"
+                                        value={phoneNumber}
+                                        keyboardType="phone-pad"
+                                        onChangeText={(text) => {
+                                            handlePhoneChange(text);
+                                            if (phoneNumberError) setPhoneNumberError("");
+                                        }}
+                                    />
+                                </View>
+                                {phoneNumberError ? <Text style={{ color: "red" }}>{phoneNumberError}</Text> : null}
+
+                                <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    style={{
+                                        width: "100%",
+                                        height: 50,
+                                        backgroundColor: "#1E90FF",
+                                        borderRadius: 8,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        marginTop: 15,
+                                        marginBottom: 20,
+                                    }}
+                                    onPress={() => {
+                                        handleSubmitInfo()
+                                    }}
+                                >
+                                    <Text className="text-white text-lg font-bold">Next</Text>
                                 </TouchableOpacity>
                             </View>
 
-                            {/* Step 3 */}
+                            {/* Step 3 - Address */}
                             <View style={{ flex: 1, padding: 20 }}>
-                                <Text style={{ fontSize: 24, fontWeight: "bold" }}>
-                                    Final Step
-                                </Text>
-                                <TextInput
-                                    placeholder="Enter your website URL"
-                                    value={websiteUrl}
-                                    onChangeText={setWebsiteUrl}
-                                />
-                                <TouchableOpacity onPress={handleSubmitUrl}>
-                                    <Text>Finish</Text>
+                                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 10 }}>
+                                    <TouchableOpacity onPress={handleReturn} style={{marginRight: 10}}>
+                                        <Ionicons name="chevron-back-circle-outline" size={24} color="black" />
+                                    </TouchableOpacity>
+                                    <View>
+                                        <Text style={{ fontSize: 24, fontWeight: "bold" }}>Address</Text>
+                                        <Text style={{ fontSize: 14 }}>Add your correct home address</Text>
+                                    </View>
+                                </View>
+
+                                <View className="flex-row justify-between">
+                                    <View style={{width: "48%" }}>
+                                        <View
+                                            className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                            style={{ paddingHorizontal: 5}}
+                                        >
+                                            <TextInput
+                                                placeholder="House Number"
+                                                value={email}
+                                                autoCapitalize="none"
+                                                keyboardType="email-address"
+                                                onChangeText={(text) => {
+                                                    setEmail(text);
+                                                    if (emailError) setEmailError("");
+                                                }}
+                                                className="w-full"
+                                            />
+                                        </View>
+                                        {emailError ? <Text style={{ color: "red", fontSize: 12 }}>{emailError}</Text> : null}
+                                    </View>
+                                    <View style={{width: "48%" }}>
+                                        <View
+                                            className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                            style={{ paddingHorizontal: 5 }}
+                                        >
+                                            <TextInput
+                                                placeholder="Street"
+                                                value={email}
+                                                autoCapitalize="none"
+                                                keyboardType="email-address"
+                                                onChangeText={(text) => {
+                                                    setEmail(text);
+                                                    if (emailError) setEmailError("");
+                                                }}
+                                                className="w-full"
+                                            />
+                                        </View>
+                                        {emailError ? <Text style={{ color: "red", fontSize: 12 }}>{emailError}</Text> : null}
+                                    </View>
+                                </View>
+
+                                <View style={{ marginTop: 10 }}>
+                                    <View
+                                        className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                        style={{ paddingHorizontal: 5 }}
+                                    >
+                                        <TextInput
+                                            placeholder="Barangay"
+                                            value={email}
+                                            autoCapitalize="none"
+                                            keyboardType="email-address"
+                                            onChangeText={(text) => {
+                                                setEmail(text);
+                                                if (emailError) setEmailError("");
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </View>
+                                    {emailError ? <Text style={{ color: "red", fontSize: 12 }}>{emailError}</Text> : null}
+                                </View>
+
+                                <View style={{ marginVertical: 10 }}>
+                                    <View
+                                        className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                        style={{ paddingHorizontal: 5 }}
+                                    >
+                                        <TextInput
+                                            placeholder="Municipality"
+                                            value={email}
+                                            autoCapitalize="none"
+                                            keyboardType="email-address"
+                                            onChangeText={(text) => {
+                                                setEmail(text);
+                                                if (emailError) setEmailError("");
+                                            }}
+                                            className="w-full"
+                                        />
+                                    </View>
+                                    {emailError ? <Text style={{ color: "red", fontSize: 12 }}>{emailError}</Text> : null}
+                                </View>
+
+                                <View className="flex-row justify-between">
+                                    <View style={{width: "48%" }}>
+                                        <View
+                                            className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                            style={{ paddingHorizontal: 5}}
+                                        >
+                                            <TextInput
+                                                placeholder="Region"
+                                                value={email}
+                                                autoCapitalize="none"
+                                                keyboardType="email-address"
+                                                onChangeText={(text) => {
+                                                    setEmail(text);
+                                                    if (emailError) setEmailError("");
+                                                }}
+                                                className="w-full"
+                                            />
+                                        </View>
+                                        {emailError ? <Text style={{ color: "red", fontSize: 12 }}>{emailError}</Text> : null}
+                                    </View>
+                                    <View style={{width: "48%" }}>
+                                        <View
+                                            className="bg-gray-200 rounded-lg py-1 flex-row items-center"
+                                            style={{ paddingHorizontal: 5 }}
+                                        >
+                                            <TextInput
+                                                placeholder="Zipcode"
+                                                value={email}
+                                                autoCapitalize="none"
+                                                keyboardType="email-address"
+                                                onChangeText={(text) => {
+                                                    setEmail(text);
+                                                    if (emailError) setEmailError("");
+                                                }}
+                                                className="w-full"
+                                            />
+                                        </View>
+                                        {emailError ? <Text style={{ color: "red", fontSize: 12 }}>{emailError}</Text> : null}
+                                    </View>
+                                </View>
+
+
+                                <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    style={{
+                                        width: "100%",
+                                        height: 45,
+                                        borderRadius: 12,
+                                        backgroundColor: "#2563EB", // Tailwind blue-600
+                                        marginTop: 12,
+                                        marginBottom: 16,
+                                        flexDirection: "row",
+                                        overflow: "hidden", // clean corners
+                                    }}
+                                    onPress={handleSubmitAddress}
+                                >
+                                    {/* Left side - Pin Button */}
+                                    <View
+                                        style={{
+                                            width: "40%",
+                                            backgroundColor: "#1D4ED8", // darker blue
+                                            justifyContent: "center",
+                                            alignItems: "center",
+                                            flexDirection: "row",
+                                            paddingHorizontal: 8,
+                                        }}
+                                    >
+                                        <Feather name="map-pin" size={18} color="white" style={{ marginRight: 5 }} />
+                                        <Text style={{ color: "white", fontWeight: "bold", fontSize: 14 }}>
+                                            Pin Location
+                                        </Text>
+                                    </View>
+
+                                    {/* Right side - Placeholder */}
+                                    <View
+                                        style={{
+                                            width: "60%",
+                                            justifyContent: "center",
+                                            alignItems: "center",
+                                            paddingHorizontal: 6,
+                                        }}
+                                    >
+                                        <Text style={{ color: "white", fontSize: 13, textAlign: "center" }}>
+                                            Placeholder for geolocation
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+
+
+                                <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    style={{
+                                        width: "100%",
+                                        height: 50,
+                                        backgroundColor: "#1E90FF",
+                                        borderRadius: 8,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        marginTop: 15,
+                                        marginBottom: 20,
+                                    }}
+                                    onPress={() => {
+                                        handleSubmitAddress()
+                                    }}
+                                >
+                                    <Text className="text-white text-lg font-bold">Next</Text>
+                                </TouchableOpacity>
+                            </View>
+
+                            {/* Step 4 - Valid Id */}
+                            <View style={{ flex: 1, padding: 20 }}>
+                                {/* Header */}
+                                <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 20 }}>
+                                    <TouchableOpacity onPress={handleReturn} style={{ marginRight: 5 }}>
+                                        <Ionicons name="chevron-back-circle-outline" size={28} color="black" />
+                                    </TouchableOpacity>
+                                    <View>
+                                        <Text style={{ fontSize: 24, fontWeight: "bold" }}>Submit Identification</Text>
+                                        <Text style={{ fontSize: 14 }}>Submit your valid ID for verification</Text>
+                                    </View>
+                                </View>
+
+                                {/* Upload Button */}
+                                <TouchableOpacity
+                                    onPress={pickImage}
+                                    style={{
+                                        height: 150,
+                                        borderWidth: 2,
+                                        borderColor: "#1E90FF",
+                                        borderRadius: 10,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        backgroundColor: "#f9f9f9",
+                                        marginBottom: 10,
+                                    }}
+                                >
+                                    {selectedImage ? (
+                                        <Image
+                                            source={{ uri: selectedImage }}
+                                            style={{ width: "100%", height: "100%", borderRadius: 8 }}
+                                            resizeMode="contain"
+                                        />
+                                    ) : (
+                                        <Text style={{ color: "#1E90FF", fontWeight: "bold" }}>+ Upload ID Photo</Text>
+                                    )}
+                                </TouchableOpacity>
+
+                                {/* Take Photo Button */}
+                                <TouchableOpacity
+                                    onPress={takePhoto}
+                                    style={{
+                                        height: 50,
+                                        backgroundColor: "#FFD700",
+                                        borderRadius: 8,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                        marginBottom: 20,
+                                    }}
+                                >
+                                    <Text style={{ fontWeight: "bold", fontSize: 16 }}>📷 Take a Photo</Text>
+                                </TouchableOpacity>
+
+                                {/* Submit Button */}
+                                <TouchableOpacity
+                                    activeOpacity={0.8}
+                                    style={{
+                                        width: "100%",
+                                        height: 50,
+                                        backgroundColor: "#1E90FF",
+                                        borderRadius: 8,
+                                        justifyContent: "center",
+                                        alignItems: "center",
+                                    }}
+                                    onPress={handleSubmitID}
+                                >
+                                    <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>Finish</Text>
                                 </TouchableOpacity>
                             </View>
                         </Animated.View>

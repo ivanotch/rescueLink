@@ -5,35 +5,64 @@ import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../services/firebaseConfig";
 
 export default function RootLayout() {
     const [loading, setLoading] = useState(true);
     const [user, setUser] = useState<User | null>(null);
+    const [nextRoute, setNextRoute] = useState<string | null>(null);
     const router = useRouter();
 
-    // Listen for auth state changes
     useEffect(() => {
         const auth = getAuth();
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+            if (!firebaseUser) {
+                setUser(null);
+                setNextRoute("/login");
+                setLoading(false);
+                return;
+            }
+
             setUser(firebaseUser);
-            setLoading(false);
+
+            try {
+                const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+
+                if (userDoc.exists()) {
+                    const data = userDoc.data();
+                    const step = data?.profileCompletionStep ?? 1;
+
+                    if (step < 3) {
+                        // still mid-signup → keep them inside signup flow
+                        setNextRoute("/(auth)/signup");
+                    } else {
+                        // finished → go to app
+                        setNextRoute("/(tabs)");
+                    }
+                } else {
+                    // no profile yet → start signup
+                    setNextRoute("/(auth)/signup");
+                }
+
+
+            } catch (error) {
+                console.error("Error fetching user profile:", error);
+                setNextRoute("/login");
+            } finally {
+                setLoading(false);
+            }
         });
 
         return () => unsubscribe();
     }, []);
 
-    // Redirect after we know the auth state
+    // 🚀 Handle navigation *after* loading finishes
     useEffect(() => {
-        if (!loading) {
-            if (user) {
-                console.log("User logged in:", user.uid);
-                router.replace("/(tabs)" as Href);
-            } else {
-                console.log("No user found");
-                router.replace("/login" as Href);
-            }
+        if (!loading && nextRoute) {
+            router.replace(nextRoute as Href);
         }
-    }, [loading, user]);
+    }, [loading, nextRoute]);
 
     if (loading) {
         return (
