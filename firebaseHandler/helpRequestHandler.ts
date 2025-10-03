@@ -24,6 +24,7 @@ export async function createHelpRequest(request: Omit<HelpRequest, "wordedAddres
     isSubmitting = true;
 
     try {
+
         let photoUrl = "";
 
         if (request.photoUri) {

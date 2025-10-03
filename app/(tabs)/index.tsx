@@ -8,6 +8,8 @@ import {HelpRequestWithId} from "@/types/helpRequestWithId";
 import {listenToRequest, createHelpRequest} from "@/firebaseHandler/helpRequestHandler";
 import {router} from "expo-router";
 import MapPicker from "@/components/MapPicker";
+import {getAuth} from "firebase/auth";
+import {getStorage} from "firebase/storage";
 
 export default function Index() {
 
@@ -51,6 +53,10 @@ export default function Index() {
 
     const handleSubmit = async () => {
         try {
+            const auth = getAuth();
+            const currentUser = auth.currentUser;
+            if (!currentUser) throw new Error("No logged-in user");
+
             if (!concern.trim()) {
                 alert("Please enter a concern.");
                 return;
@@ -66,7 +72,7 @@ export default function Index() {
                 return;
             }
             await createHelpRequest({
-                personId: "+639123456789", // later: get from (auth) or input
+                personId: currentUser.uid,
                 concern,
                 description,
                 levelOfUrgency: urgency,

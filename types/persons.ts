@@ -16,6 +16,8 @@ export interface Address {
 export interface Person {
     name: string;
     phoneNumber: string;
+    email: string;
+    profileCompletionStep: number;
     address: Address;
     validIdUrl: string;
     isValidated: boolean;

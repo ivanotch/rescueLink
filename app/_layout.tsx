@@ -33,7 +33,7 @@ export default function RootLayout() {
                     const data = userDoc.data();
                     const step = data?.profileCompletionStep ?? 1;
 
-                    if (step < 3) {
+                    if (step < 4) {
                         // still mid-signup → keep them inside signup flow
                         setNextRoute("/(auth)/signup");
                     } else {
