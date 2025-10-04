@@ -9,7 +9,6 @@ import {listenToRequest, createHelpRequest} from "@/firebaseHandler/helpRequestH
 import {router} from "expo-router";
 import MapPicker from "@/components/MapPicker";
 import {getAuth} from "firebase/auth";
-import {getStorage} from "firebase/storage";
 
 export default function Index() {
 
@@ -21,7 +20,6 @@ export default function Index() {
     const [description, setDescription] = useState("");
     const [urgency, setUrgency] = useState<"low" | "medium" | "high">("low");
     const urgencyLevels = ["low", "medium", "high"] as const;
-
 
     const [activeTab, setActiveTab] = useState<"humans" | "animals">("humans");
     const [requests, setRequests] = useState<HelpRequestWithId[]>([]);

@@ -27,13 +27,13 @@ export default function RootLayout() {
             setUser(firebaseUser);
 
             try {
-                const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+                const userDoc = await getDoc(doc(db, "persons", firebaseUser.uid));
 
                 if (userDoc.exists()) {
                     const data = userDoc.data();
                     const step = data?.profileCompletionStep ?? 1;
 
-                    if (step < 4) {
+                    if (step < 5) {
                         // still mid-signup → keep them inside signup flow
                         setNextRoute("/(auth)/signup");
                     } else {

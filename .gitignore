@@ -3,7 +3,8 @@
 # dependencies
 node_modules/
 
-android/app/
+# ignore only google-services.json in android/app
+android/app/google-services.json
 
 # Expo
 .expo/

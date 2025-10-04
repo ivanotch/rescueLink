@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, {useEffect, useState} from "react";
 import {
     View,
     TextInput,
@@ -8,8 +8,8 @@ import {
     Dimensions,
     Image,
 } from "react-native";
-import { setDoc, doc, updateDoc, GeoPoint } from "firebase/firestore";
-import {createUserWithEmailAndPassword,} from "firebase/auth";
+import { setDoc, getDoc, doc, updateDoc, GeoPoint } from "firebase/firestore";
+import {createUserWithEmailAndPassword, onAuthStateChanged} from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import {SafeAreaProvider, SafeAreaView} from "react-native-safe-area-context";
 import Animated, {useSharedValue, useAnimatedStyle, withTiming,} from "react-native-reanimated";
@@ -60,6 +60,27 @@ export default function Signup() {
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const [selectedImageError, setSelectedImageError] = useState("");
 
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                console.log("Current user", user.uid);
+                const userRef = doc(db, "persons", user.uid);
+                const userSnap = await getDoc(userRef);
+                if (userSnap.exists()) {
+                    const { profileCompletionStep } = userSnap.data();
+
+                    // Go directly to that step
+                    slideTo(profileCompletionStep);
+                }
+            } else {
+                console.log("No user logged in");
+                slideTo(1); // always reset to step 1 for fresh users
+            }
+        });
+
+        return unsubscribe;
+    }, []);
+
     const validateEmail = (email: string) => {
         const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         return regex.test(email);
@@ -101,7 +122,7 @@ export default function Signup() {
         try {
             const userCredential = await createUserWithEmailAndPassword(auth, email, password);
             await setDoc(doc(db, "persons", userCredential.user.uid), {
-                profileCompletionStep: 1,
+                profileCompletionStep: 2,
             }, { merge: true });
             console.log("User created:", userCredential.user.uid);
             slideTo(2);
@@ -149,7 +170,7 @@ export default function Signup() {
                 name: name,
                 phoneNumber: phoneNumber,
                 email: email,
-                profileCompletionStep: 2,
+                profileCompletionStep: 3,
                 isValidated: false,
             })
 
@@ -201,7 +222,7 @@ export default function Signup() {
             }
             const userRef = doc(db, "persons", currentUser.uid);
             await updateDoc(userRef, {
-                profileCompletionStep: 3,
+                profileCompletionStep: 4,
                 address: {
                     houseNo: houseNumber,
                     street: street,
@@ -290,7 +311,7 @@ export default function Signup() {
             await updateDoc(userRef, {
                 isValidated: true,
                 validIdUrl: downloadURL,
-                profileCompletionStep: 4,
+                profileCompletionStep: 5,
             })
 
             router.replace('/(tabs)' as Href)
