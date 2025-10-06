@@ -1,4 +1,4 @@
-import {Text, View, Image} from 'react-native';
+import {Text, View, Image, TouchableOpacity} from 'react-native';
 import Timeline from "react-native-timeline-flatlist";
 
 interface TimelineProps {
@@ -102,14 +102,28 @@ export default function TimelineStyle({requestDetails, responses}: TimelineProps
                                 borderRadius: 8,
                             }}
                         >
-                            <Text style={{ fontWeight: "bold" }}>{rowData.title}</Text>
-                            <Text>{rowData.description}</Text>
+                            <View style={{borderBottomWidth: 1, alignItems: 'center', justifyContent: "center", marginBottom: 10}}>
+                                <Text style={{ fontWeight: "bold", fontSize: 16 }}>{rowData.title}</Text>
+                            </View>
+                            <View className="flex-col">
+                                <Text>Description: </Text>
+                                <View style={{padding: 4, borderRadius: 10}}  className="bg-gray-200">
+                                    <Text>{rowData.description}</Text>
+                                </View>
+                            </View>
 
                             {/* Show extra info */}
                             {rowData.extra?.wordedAddress && (
-                                <Text style={{ marginTop: 5, color: "gray" }}>
-                                    📍 {rowData.extra.wordedAddress}
-                                </Text>
+                                <View className="flex-col justify-center items-center" style={{marginVertical: 10}}>
+                                    <Text style={{ marginTop: 5, color: "gray" }}>
+                                        📍 {rowData.extra.wordedAddress}
+                                    </Text>
+                                    <TouchableOpacity>
+                                        <Text>
+                                            View in map
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
                             )}
 
                             {rowData.extra?.helpStatus && (
@@ -135,14 +149,6 @@ export default function TimelineStyle({requestDetails, responses}: TimelineProps
                             )}
                         </View>
                     )}
-
-                    // renderCircle={(rowData) => (
-                    //     <View
-                    //         style={{
-                    //             backgroundColor: rowData.circleColor || "gray",
-                    //         }}
-                    //     />
-                    // )}
                 />
     );
 }

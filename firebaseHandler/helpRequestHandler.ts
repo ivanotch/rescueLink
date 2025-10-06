@@ -45,7 +45,9 @@ export async function createHelpRequest(request: Omit<HelpRequest, "wordedAddres
         });
 
         const wordedAddress = address
-            ? `${address.street || ""} ${address.city || ""} ${address.subregion || ""}, ${address.region || ""}, ${address.country || ""}`
+            ? `${address.name || address.street || ""}, ${address.district || address.city || ""}, ${address.subregion || ""}, ${address.region || ""}, ${address.country || ""}`
+                .replace(/,\s*,/g, ",") // remove double commas
+                .trim()
             : "Unknown location";
 
         const { photoUri, ...rest } = request;
