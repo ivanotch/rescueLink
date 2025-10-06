@@ -113,6 +113,7 @@ dependencies {
 }
 
 // Disable incremental Kotlin compilation on Windows (optional, fixes some compiler crashes)
-tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
-    kotlinOptions.incremental = false
-}
+// Disable incremental Kotlin compilation (removed for EAS compatibility)
+// tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+//     kotlinOptions.incremental = false
+// }
