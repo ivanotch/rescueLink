@@ -1,16 +1,25 @@
 #!/bin/bash
 set -e
 
-echo "Decoding google-services.json from EAS secret..."
+echo "🔧 Running pre-install script to decode google-services.json ..."
 
-# Ensure the env variable exists
+# Check if the env variable is set
 if [ -z "$GOOGLE_SERVICES_JSON" ]; then
-  echo "❌ GOOGLE_SERVICES_JSON is not set"
+  echo "❌ GOOGLE_SERVICES_JSON environment variable is missing!"
   exit 1
 fi
 
-# Decode the base64 string into the actual file
+# Ensure output directory exists
+mkdir -p android/app
+
+# Decode the base64 string into the JSON file
 echo "$GOOGLE_SERVICES_JSON" | base64 --decode > android/app/google-services.json
 
-echo "✅ google-services.json created successfully!"
-ls android/app | grep google-services.json || echo "⚠️ google-services.json not found!"
+# Confirm the file exists
+if [ -f "android/app/google-services.json" ]; then
+  echo "✅ google-services.json created successfully!"
+  ls -l android/app/google-services.json
+else
+  echo "❌ Failed to create google-services.json!"
+  exit 1
+fi
