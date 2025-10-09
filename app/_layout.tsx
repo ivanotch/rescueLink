@@ -6,7 +6,7 @@ import { getAuth, onAuthStateChanged, User } from "firebase/auth";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { doc, getDoc } from "firebase/firestore";
-import { db } from "../services/firebaseConfig";
+import { db } from "@/services/firebaseConfig";
 
 export default function RootLayout() {
     const [loading, setLoading] = useState(true);

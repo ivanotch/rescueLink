@@ -1,5 +1,5 @@
 // Import the functions you need from the SDKs you need
-import 'dotenv/config';
+import Constants from "expo-constants";
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
@@ -10,7 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Your web app's Firebase configuration
 export const firebaseConfig = {
-    apiKey: process.env.FIREBASE_API_KEY,
+    apiKey: Constants.expoConfig?.extra?.FIREBASE_API_KEY,
     authDomain: "rescue-app-6f6e4.firebaseapp.com",
     projectId: "rescue-app-6f6e4",
     storageBucket: "rescue-app-6f6e4.appspot.com", //firebasestorage.app

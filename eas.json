@@ -12,14 +12,32 @@
       },
       "ios": {
         "simulator": true
+      },
+      "env": {
+        "GOOGLE_SERVICES_JSON": "${GOOGLE_SERVICES_JSON}"
+      },
+      "hooks": {
+        "prebuild": "echo $GOOGLE_SERVICES_JSON | base64 --decode > android/app/google-services.json"
       }
     },
     "preview": {
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "GOOGLE_SERVICES_JSON": "${GOOGLE_SERVICES_JSON}"
+      },
+      "hooks": {
+        "prebuild": "echo $GOOGLE_SERVICES_JSON | base64 --decode > android/app/google-services.json"
+      }
     },
     "production": {
       "autoIncrement": true,
-      "distribution": "store"
+      "distribution": "store",
+      "env": {
+        "GOOGLE_SERVICES_JSON": "${GOOGLE_SERVICES_JSON}"
+      },
+      "hooks": {
+        "prebuild": "echo $GOOGLE_SERVICES_JSON | base64 --decode > android/app/google-services.json"
+      }
     }
   },
   "submit": {

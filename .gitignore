@@ -5,6 +5,7 @@ node_modules/
 
 # ignore only google-services.json in android/app
 android/app/google-services.json
+google-services.json.base64.txt
 
 # Expo
 .expo/
